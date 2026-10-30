@@ -15,21 +15,24 @@ class GeminiService {
       throw 'Brak klucza API Gemini – dodaj go w Ustawieniach ⚙️.';
     }
 
-    // Lista sprawdzonych modeli do wypróbowania w kolejności
-    final candidates = [
-      'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$k',
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=$k',
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$k',
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$k',
+    // Sprawdzamy po kolei modele z tej samej rodziny
+    final models = [
+      'gemini-3.8-flash',
+      'gemini-3.8-pro',
+      'gemini-3.8-flash-lite',
     ];
 
     String lastErr = '';
 
-    for (final urlStr in candidates) {
+    for (final model in models) {
       try {
+        final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$k',
+        );
+
         final res = await http
             .post(
-              Uri.parse(urlStr),
+              url,
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({
                 'contents': [
@@ -41,19 +44,27 @@ class GeminiService {
                 ]
               }),
             )
-            .timeout(const Duration(seconds: 15));
+            .timeout(const Duration(seconds: 25));
 
         if (res.statusCode == 200) {
           final j = jsonDecode(res.body);
           return (j['candidates'][0]['content']['parts'][0]['text'] as String).trim();
-        } else {
-          lastErr = 'HTTP ${res.statusCode}: ${res.body}';
         }
+
+        // Jeśli 503 lub 429, przeskakujemy od razu do następnego modelu
+        if (res.statusCode == 503 || res.statusCode == 429) {
+          lastErr = 'Model $model przeciążony (503).';
+          continue;
+        }
+
+        final errJson = jsonDecode(res.body);
+        final msg = errJson['error']?['message'] ?? res.body;
+        lastErr = 'Błąd $model: $msg';
       } catch (e) {
         lastErr = e.toString();
       }
     }
 
-    throw 'Błąd Gemini: $lastErr';
+    throw 'Serwery są obecnie mocno obciążone. Spróbuj za chwilę lub włącz Billing w AI Studio.';
   }
 }
