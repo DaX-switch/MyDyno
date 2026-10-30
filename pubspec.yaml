@@ -1,0 +1,35 @@
+name: my_dyno
+description: My Dyno - warsztatowa baza wiedzy i procedur dla chiptuningu
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite_sqlcipher: ^3.1.0+1
+  path: ^1.9.0
+  path_provider: ^2.1.4
+  shared_preferences: ^2.3.2
+  flutter_secure_storage: ^11.2.0
+  image_picker: ^1.1.2
+  image: ^4.2.0
+  archive: ^4.5.2
+  uuid: ^4.5.1
+  share_plus: ^13.3.1
+  file_picker: ^13.3.0
+  url_launcher: ^6.3.1
+  http: ^1.2.2
+  intl: ^0.20.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo.png
