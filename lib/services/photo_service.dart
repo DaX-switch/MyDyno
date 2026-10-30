@@ -1,25 +1,33 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
-Uint8List _compress(String src) {
-  var im = img.decodeImage(File(src).readAsBytesSync())!;
+class _CompressParams {
+  final String src;
+  final bool isHighQuality;
+  _CompressParams(this.src, this.isHighQuality);
+}
+
+Uint8List _compressJob(_CompressParams params) {
+  var im = img.decodeImage(File(params.src).readAsBytesSync())!;
   im = img.bakeOrientation(im);
-  if (max(im.width, im.height) > 1024) {
+
+  final maxDim = params.isHighQuality ? 2560 : 1280;
+  final quality = params.isHighQuality ? 92 : 75;
+
+  if (max(im.width, im.height) > maxDim) {
     im = im.width >= im.height
-        ? img.copyResize(im, width: 1024)
-        : img.copyResize(im, height: 1024);
+        ? img.copyResize(im, width: maxDim)
+        : img.copyResize(im, height: maxDim);
   }
-  return Uint8List.fromList(img.encodeJpg(im, quality: 70));
+  return Uint8List.fromList(img.encodeJpg(im, quality: quality));
 }
 
 class PhotoService {
-  /// Prywatny katalog aplikacji + .nomedia (galeria/Google Photos nie indeksują).
   static Future<Directory> dir() async {
     final base = await getApplicationDocumentsDirectory();
     final d = Directory(p.join(base.path, 'photos'));
@@ -32,9 +40,11 @@ class PhotoService {
   static Future<String> pathFor(String fileName) async =>
       p.join((await dir()).path, fileName);
 
-  /// Kompresuje zdjęcie (max 1024 px, JPG 70%) i zapisuje; zwraca nazwę pliku.
-  static Future<String> saveCompressed(String srcPath) async {
-    final bytes = await compute(_compress, srcPath);
+  static Future<String> saveCompressed(String srcPath, {String? tab}) async {
+    final highQualityTabs = ['moc', 'dyno', 'power', 'hamownia'];
+    final isHighQuality = tab != null && highQualityTabs.any((k) => tab.toLowerCase().contains(k));
+
+    final bytes = await compute(_compressJob, _CompressParams(srcPath, isHighQuality));
     final name = '${const Uuid().v4()}.jpg';
     await File(await pathFor(name)).writeAsBytes(bytes);
     return name;

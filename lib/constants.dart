@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 
-const kVersion = 'v0.1';
+const kVersion = 'v0.12';
 const kDbPassword = 'dawix';
 const kFbUrl = 'https://facebook.com/zapomnienie';
 // TODO: wstaw swój link Buy Me a Coffee

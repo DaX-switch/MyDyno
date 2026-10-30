@@ -36,7 +36,7 @@ class _PhotoBoxState extends State<PhotoBox> {
     if (x == null) return;
     setState(() => _busy = true);
     try {
-      final name = await PhotoService.saveCompressed(x.path);
+      final name = await PhotoService.saveCompressed(x.path, tab: widget.tab);
       await Repo.addPhoto(widget.vehicleId, widget.tab, name);
       await _load();
     } catch (e) {

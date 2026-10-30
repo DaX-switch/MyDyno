@@ -17,6 +17,7 @@ class TabsScreen extends StatefulWidget {
 }
 
 class _TabsScreenState extends State<TabsScreen> {
+  bool _deleted = false;
   Vehicle? _v;
   int _gen = 0;
 
@@ -28,14 +29,17 @@ class _TabsScreenState extends State<TabsScreen> {
 
   Future<void> _load() async {
     final v = await Repo.get(widget.vehicleId);
-    if (mounted) setState(() {
-      _v = v;
-      _gen++;
-    });
+    if (mounted) {
+      setState(() {
+        _v = v;
+        _gen++;
+      });
+    }
   }
 
   /// Dopisuje ostatnią cenę do historii (jeśli się zmieniła) i zapisuje rekord.
   Future<void> _save() async {
+    if (_deleted) return;
     final v = _v;
     if (v == null) return;
     for (final e in v.data.entries) {
@@ -96,8 +100,22 @@ class _TabsScreenState extends State<TabsScreen> {
                       ),
                     );
                     if (ok == true) {
-                      await Repo.delete(v.id);
-                      if (mounted) Navigator.pop(context);
+                      _deleted = true;
+                      try {
+                        await Repo.delete(v.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Usunięto pomyślnie')),
+                          );
+                          Navigator.pop(context);
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Błąd usuwania: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
                     }
                   }
                 },
