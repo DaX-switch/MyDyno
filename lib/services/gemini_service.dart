@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import '../constants.dart';
 
 class GeminiService {
   static const _st = FlutterSecureStorage();
@@ -15,11 +14,15 @@ class GeminiService {
     if (k == null || k.isEmpty) {
       throw 'Brak klucza API Gemini – dodaj go w Ustawieniach ⚙️.';
     }
+
+    final url = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$k',
+    );
+
     final res = await http
         .post(
-          Uri.parse(
-              'https://generativelanguage.googleapis.com/v1beta/models/$kGeminiModel:generateContent'),
-          headers: {'Content-Type': 'application/json', 'x-goog-api-key': k},
+          url,
+          headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'contents': [
               {
@@ -30,8 +33,18 @@ class GeminiService {
             ]
           }),
         )
-        .timeout(const Duration(seconds: 40));
-    if (res.statusCode != 200) throw 'Błąd Gemini (${res.statusCode}).';
+        .timeout(const Duration(seconds: 25));
+
+    if (res.statusCode != 200) {
+      try {
+        final errJson = jsonDecode(res.body);
+        final msg = errJson['error']?['message'] ?? res.body;
+        throw 'Błąd Gemini (${res.statusCode}): $msg';
+      } catch (_) {
+        throw 'Błąd Gemini (${res.statusCode}): ${res.body}';
+      }
+    }
+
     final j = jsonDecode(res.body);
     return (j['candidates'][0]['content']['parts'][0]['text'] as String).trim();
   }

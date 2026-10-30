@@ -5,6 +5,7 @@ Twoja lokalna baza danych
 Relase Note:
 My Dyno v0.12.0
 Kluczowe zmiany (Highlights)
+Dodano obsługę internetu dla API gemini
 Trwałe usuwanie pojazdów: Rozwiązano problem automatycznego przywracania usuniętego auta do bazy SQLite po zamknięciu ekranu.
 
 Wysoka rozdzielczość wykresów hamowni: Zakładki pomiarowe (MOC, Dyno, Power, Hamownia) zapisują wykresy w podwyższonej rozdzielczości, zapewniając pełną czytelność parametrów KM, Nm i wykresów obrotów.
