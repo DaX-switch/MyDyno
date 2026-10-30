@@ -136,7 +136,7 @@ class _EditScreenState extends State<EditScreen> {
         const SizedBox(height: 8),
         _auto('Model', _model, _dbModels, (s) => _model = s),
         const SizedBox(height: 8),
-        TextField(controller: _year, decoration: const InputDecoration(labelText: 'Rocznik')),
+        TextField(controller: _year, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Rocznik')),
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: _ai ? null : _autofill,
@@ -146,11 +146,10 @@ class _EditScreenState extends State<EditScreen> {
           label: const Text('Autouzupełnij przez AI'),
         ),
         const SizedBox(height: 8),
-        TextField(controller: _engine, decoration: const InputDecoration(labelText: 'Kod silnika')),
+        TextField(controller: _engine, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Kod silnika')),
         const SizedBox(height: 8),
         TextField(controller: _power, decoration: const InputDecoration(labelText: 'Moc seryjna KM / Nm')),
         const SizedBox(height: 8),
-        TextField(controller: _ecu, decoration: const InputDecoration(labelText: 'Rodzina ECU')),
         const SizedBox(height: 20),
         FilledButton.icon(
           onPressed: _save,
