@@ -15,37 +15,45 @@ class GeminiService {
       throw 'Brak klucza API Gemini – dodaj go w Ustawieniach ⚙️.';
     }
 
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$k',
-    );
+    // Lista sprawdzonych modeli do wypróbowania w kolejności
+    final candidates = [
+      'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$k',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=$k',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$k',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$k',
+    ];
 
-    final res = await http
-        .post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'contents': [
-              {
-                'parts': [
-                  {'text': prompt}
-                ]
-              }
-            ]
-          }),
-        )
-        .timeout(const Duration(seconds: 25));
+    String lastErr = '';
 
-    if (res.statusCode != 200) {
+    for (final urlStr in candidates) {
       try {
-        final errJson = jsonDecode(res.body);
-        final msg = errJson['error']?['message'] ?? res.body;
-        throw 'Błąd Gemini (${res.statusCode}): $msg';
-      } catch (_) {
-        throw 'Błąd Gemini (${res.statusCode}): ${res.body}';
+        final res = await http
+            .post(
+              Uri.parse(urlStr),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'contents': [
+                  {
+                    'parts': [
+                      {'text': prompt}
+                    ]
+                  }
+                ]
+              }),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        if (res.statusCode == 200) {
+          final j = jsonDecode(res.body);
+          return (j['candidates'][0]['content']['parts'][0]['text'] as String).trim();
+        } else {
+          lastErr = 'HTTP ${res.statusCode}: ${res.body}';
+        }
+      } catch (e) {
+        lastErr = e.toString();
       }
     }
 
-    final j = jsonDecode(res.body);
-    return (j['candidates'][0]['content']['parts'][0]['text'] as String).trim();
+    throw 'Błąd Gemini: $lastErr';
   }
 }
