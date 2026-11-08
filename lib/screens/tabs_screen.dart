@@ -12,6 +12,7 @@ import 'edit_screen.dart';
 class TabsScreen extends StatefulWidget {
   final String vehicleId;
   const TabsScreen({super.key, required this.vehicleId});
+
   @override
   State<TabsScreen> createState() => _TabsScreenState();
 }
@@ -29,19 +30,50 @@ class _TabsScreenState extends State<TabsScreen> {
 
   Future<void> _load() async {
     final v = await Repo.get(widget.vehicleId);
-    if (mounted) {
-      setState(() {
-        _v = v;
-        _gen++;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _v = v;
+      _gen++;
+    });
   }
 
-  /// Dopisuje ostatnią cenę do historii (jeśli się zmieniła) i zapisuje rekord.
+  /// Dopisuje ostatnią cenę do historii (jeśli się zmieniła), synchronizuje
+  /// pole Rodzina ECU z zakładki do głównego rekordu i zapisuje pojazd.
   Future<void> _save() async {
     if (_deleted) return;
     final v = _v;
     if (v == null) return;
+
+    // 1. Wyszukanie wartości 'ecu_family' wpisanej w zakładkach (np. Odczyt)
+    String? foundEcu;
+    for (final e in v.data.entries) {
+      final t = e.value;
+      if (t is Map<String, dynamic>) {
+        if (t.containsKey('ecu_family') && t['ecu_family'] != null) {
+          final val = t['ecu_family'].toString().trim();
+          if (val.isNotEmpty) {
+            foundEcu = val;
+            break;
+          }
+        }
+      }
+    }
+
+    // Sprawdzenie na wypadek bezpośredniego zapisu w v.data
+    if (foundEcu == null && v.data.containsKey('ecu_family')) {
+      final val = v.data['ecu_family'].toString().trim();
+      if (val.isNotEmpty) foundEcu = val;
+    }
+
+    // Przypisanie do głównego modelu pojazdu oraz odświeżenie nagłówka
+    if (foundEcu != null && foundEcu.isNotEmpty && v.ecuFamily != foundEcu) {
+      v.ecuFamily = foundEcu;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+
+    // 2. Obsługa historii cen
     for (final e in v.data.entries) {
       final t = e.value;
       if (t is Map<String, dynamic>) {
@@ -53,6 +85,8 @@ class _TabsScreenState extends State<TabsScreen> {
         }
       }
     }
+
+    // 3. Zapis rekordu do bazy SQLite
     await Repo.save(v);
   }
 
@@ -61,6 +95,7 @@ class _TabsScreenState extends State<TabsScreen> {
     final v = _v;
     if (v == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final tabs = kTabs.where((t) => !t.dyno || Prefs.showDyno).toList();
+
     return DefaultTabController(
       length: tabs.length,
       child: PopScope(
@@ -69,16 +104,18 @@ class _TabsScreenState extends State<TabsScreen> {
         },
         child: Scaffold(
           appBar: AppBar(
-            title: Text('${v.brand} ${v.model}'),
+            title: Text('${v.brand}${v.model}'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit),
                 tooltip: 'Edytuj dane modelu',
                 onPressed: () async {
                   await _save();
-                  if (!mounted) return;
-                  final r = await Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => EditScreen(vehicleId: v.id, fromTabs: true)));
+                  if (!context.mounted) return;
+                  final r = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => EditScreen(vehicleId: v.id, fromTabs: true)),
+                  );
                   if (r == true) _load();
                 },
               ),
@@ -86,7 +123,7 @@ class _TabsScreenState extends State<TabsScreen> {
                 onSelected: (s) async {
                   if (s == 'share') {
                     await _save();
-                    if (mounted) shareVehicle(context, v);
+                    if (context.mounted) shareVehicle(context, v);
                   } else if (s == 'delete') {
                     final ok = await showDialog<bool>(
                       context: context,
@@ -103,14 +140,14 @@ class _TabsScreenState extends State<TabsScreen> {
                       _deleted = true;
                       try {
                         await Repo.delete(v.id);
-                        if (mounted) {
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Usunięto pomyślnie')),
                           );
                           Navigator.pop(context);
                         }
                       } catch (e) {
-                        if (mounted) {
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Błąd usuwania: $e'), backgroundColor: Colors.red),
                           );
@@ -126,23 +163,27 @@ class _TabsScreenState extends State<TabsScreen> {
               ),
             ],
           ),
-          body: Column(children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text(
-                '${v.year} · ${v.engineCode} · ${v.stockPower} · ECU: ${v.ecuFamily}\n'
-                'Ostatnia aktualizacja: ${fmtDate(v.updatedAt)}',
-                style: Theme.of(context).textTheme.bodySmall,
+          body: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text(
+                  '${v.year} ·${v.engineCode} · ${v.stockPower} · ECU: ${v.ecuFamily.isEmpty ? '–' : v.ecuFamily}\n'
+                  'Ostatnia aktualizacja: ${fmtDate(v.updatedAt)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
-            ),
-            TabBar(isScrollable: true, tabs: [for (final t in tabs) Tab(text: t.title)]),
-            Expanded(
-              child: TabBarView(children: [
-                for (final t in tabs) TabView(key: ValueKey('${t.key}-$_gen'), v: v, spec: t),
-              ]),
-            ),
-          ]),
+              TabBar(isScrollable: true, tabs: [for (final t in tabs) Tab(text: t.title)]),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    for (final t in tabs) TabView(key: ValueKey('${t.key}-$_gen'), v: v, spec: t),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
