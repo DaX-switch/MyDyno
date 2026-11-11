@@ -18,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Vehicle> _all = [];
   String _q = '';
   bool _loading = true;
+  String? _selectedId;
 
   @override
   void initState() {
@@ -37,6 +38,11 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _all = l;
         _loading = false;
+        if (_selectedId == null && l.isNotEmpty) {
+          _selectedId = l.first.id;
+        } else if (_selectedId != null && !l.any((v) => v.id == _selectedId)) {
+          _selectedId = l.isNotEmpty ? l.first.id : null;
+        }
       });
     }
   }
@@ -63,6 +69,45 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 720;
+
+        if (!isWide) {
+          return _buildScaffold(isWide: false);
+        }
+
+        return Scaffold(
+          body: Row(
+            children: [
+              SizedBox(
+                width: 380,
+                child: _buildScaffold(isWide: true),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: _selectedId == null
+                    ? const Center(
+                        child: Text(
+                          'Wybierz model z listy po lewej',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      )
+                    : TabsScreen(
+                        key: ValueKey(_selectedId),
+                        vehicleId: _selectedId!,
+                        embedded: true,
+                        onUpdated: _load,
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScaffold({required bool isWide}) {
     final list = _filtered;
     return Scaffold(
       appBar: AppBar(
@@ -124,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     : ListView.builder(
                         padding: const EdgeInsets.only(bottom: 88),
                         itemCount: list.length,
-                        itemBuilder: (_, i) => _card(list[i]),
+                        itemBuilder: (_, i) => _card(list[i], isWide: isWide),
                       ),
           ),
         ],
@@ -132,12 +177,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _card(Vehicle v) {
+  Widget _card(Vehicle v, {required bool isWide}) {
     final tt = Theme.of(context).textTheme;
+    final isSelected = isWide && v.id == _selectedId;
+
     return Card(
+      color: isSelected ? Theme.of(context).colorScheme.primaryContainer.withAlpha(90) : null,
+      shape: isSelected
+          ? RoundedRectangleBorder(
+              side: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+            )
+          : null,
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: InkWell(
-        onTap: () => _open(TabsScreen(vehicleId: v.id)),
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          if (isWide) {
+            setState(() => _selectedId = v.id);
+          } else {
+            _open(TabsScreen(vehicleId: v.id));
+          }
+        },
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
           child: Column(
@@ -145,7 +206,9 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text(
                 '${v.brand} ${v.model}${v.year.isEmpty ? '' : ' · ${v.year}'}',
-                style: tt.titleMedium,
+                style: tt.titleMedium?.copyWith(
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
               ),
               const SizedBox(height: 4),
               Text('${v.engineCode.isEmpty ? '–' : v.engineCode} · ${v.stockPower.isEmpty ? '–' : v.stockPower}'),
@@ -155,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton.icon(
-                    icon: const Icon(Icons.copy),
+                    icon: const Icon(Icons.copy, size: 18),
                     label: const Text('Klonuj'),
                     onPressed: () async {
                       await Repo.clone(v.id);
@@ -163,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   TextButton.icon(
-                    icon: const Icon(Icons.share),
+                    icon: const Icon(Icons.share, size: 18),
                     label: const Text('Udostępnij'),
                     onPressed: () => shareVehicle(context, v),
                   ),

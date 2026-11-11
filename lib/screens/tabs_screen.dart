@@ -11,7 +11,15 @@ import 'edit_screen.dart';
 
 class TabsScreen extends StatefulWidget {
   final String vehicleId;
-  const TabsScreen({super.key, required this.vehicleId});
+  final bool embedded;
+  final VoidCallback? onUpdated;
+
+  const TabsScreen({
+    super.key,
+    required this.vehicleId,
+    this.embedded = false,
+    this.onUpdated,
+  });
 
   @override
   State<TabsScreen> createState() => _TabsScreenState();
@@ -28,6 +36,21 @@ class _TabsScreenState extends State<TabsScreen> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant TabsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.vehicleId != widget.vehicleId) {
+      _save();
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    _save();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final v = await Repo.get(widget.vehicleId);
     if (!mounted) return;
@@ -37,14 +60,11 @@ class _TabsScreenState extends State<TabsScreen> {
     });
   }
 
-  /// Dopisuje ostatnią cenę do historii (jeśli się zmieniła), synchronizuje
-  /// pole Rodzina ECU z zakładki do głównego rekordu i zapisuje pojazd.
   Future<void> _save() async {
     if (_deleted) return;
     final v = _v;
     if (v == null) return;
 
-    // 1. Wyszukanie wartości 'ecu_family' wpisanej w zakładkach (np. Odczyt)
     String? foundEcu;
     for (final e in v.data.entries) {
       final t = e.value;
@@ -59,21 +79,16 @@ class _TabsScreenState extends State<TabsScreen> {
       }
     }
 
-    // Sprawdzenie na wypadek bezpośredniego zapisu w v.data
     if (foundEcu == null && v.data.containsKey('ecu_family')) {
       final val = v.data['ecu_family'].toString().trim();
       if (val.isNotEmpty) foundEcu = val;
     }
 
-    // Przypisanie do głównego modelu pojazdu oraz odświeżenie nagłówka
     if (foundEcu != null && foundEcu.isNotEmpty && v.ecuFamily != foundEcu) {
       v.ecuFamily = foundEcu;
-      if (mounted) {
-        setState(() {});
-      }
+      if (mounted) setState(() {});
     }
 
-    // 2. Obsługa historii cen
     for (final e in v.data.entries) {
       final t = e.value;
       if (t is Map<String, dynamic>) {
@@ -86,8 +101,8 @@ class _TabsScreenState extends State<TabsScreen> {
       }
     }
 
-    // 3. Zapis rekordu do bazy SQLite
     await Repo.save(v);
+    widget.onUpdated?.call();
   }
 
   @override
@@ -104,7 +119,8 @@ class _TabsScreenState extends State<TabsScreen> {
         },
         child: Scaffold(
           appBar: AppBar(
-            title: Text('${v.brand}${v.model}'),
+            automaticallyImplyLeading: !widget.embedded,
+            title: Text('${v.brand} ${v.model}'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit),
@@ -144,7 +160,11 @@ class _TabsScreenState extends State<TabsScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Usunięto pomyślnie')),
                           );
-                          Navigator.pop(context);
+                          if (!widget.embedded) {
+                            Navigator.pop(context);
+                          } else {
+                            widget.onUpdated?.call();
+                          }
                         }
                       } catch (e) {
                         if (context.mounted) {
@@ -169,7 +189,7 @@ class _TabsScreenState extends State<TabsScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: Text(
-                  '${v.year} ·${v.engineCode} · ${v.stockPower} · ECU: ${v.ecuFamily.isEmpty ? '–' : v.ecuFamily}\n'
+                  '${v.year} · ${v.engineCode} · ${v.stockPower} · ECU: ${v.ecuFamily.isEmpty ? '–' : v.ecuFamily}\n'
                   'Ostatnia aktualizacja: ${fmtDate(v.updatedAt)}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
